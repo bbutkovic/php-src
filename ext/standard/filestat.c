@@ -326,12 +326,16 @@ PHPAPI int php_get_gid_by_name(const char *name, gid_t *gid)
 		efree(grbuf);
 		*gid = gr.gr_gid;
 #else
+#ifndef WASM_WASI
 		struct group *gr = getgrnam(name);
 
 		if (!gr) {
 			return FAILURE;
 		}
 		*gid = gr->gr_gid;
+#else
+		*gid = 0;
+#endif // WASM_WASI
 #endif
 		return SUCCESS;
 }
@@ -399,6 +403,7 @@ static void php_do_chgrp(INTERNAL_FUNCTION_PARAMETERS, int do_lchgrp) /* {{{ */
 		RETURN_FALSE;
 	}
 
+#ifndef WASM_WASI
 	if (do_lchgrp) {
 #if HAVE_LCHOWN
 		ret = VCWD_LCHOWN(filename, -1, gid);
@@ -410,6 +415,7 @@ static void php_do_chgrp(INTERNAL_FUNCTION_PARAMETERS, int do_lchgrp) /* {{{ */
 		php_error_docref(NULL, E_WARNING, "%s", strerror(errno));
 		RETURN_FALSE;
 	}
+#endif // WASM_WASI
 	RETURN_TRUE;
 #endif
 }
@@ -452,12 +458,16 @@ PHPAPI uid_t php_get_uid_by_name(const char *name, uid_t *uid)
 		efree(pwbuf);
 		*uid = pw.pw_uid;
 #else
+#ifndef WASM_WASI
 		struct passwd *pw = getpwnam(name);
 
 		if (!pw) {
 			return FAILURE;
 		}
 		*uid = pw->pw_uid;
+#else
+		*uid = 0;
+#endif // WASM_WASI
 #endif
 		return SUCCESS;
 }
@@ -465,6 +475,7 @@ PHPAPI uid_t php_get_uid_by_name(const char *name, uid_t *uid)
 
 static void php_do_chown(INTERNAL_FUNCTION_PARAMETERS, int do_lchown) /* {{{ */
 {
+#ifndef WASM_WASI
 	char *filename;
 	size_t filename_len;
 	zend_string *user_str;
@@ -539,6 +550,9 @@ static void php_do_chown(INTERNAL_FUNCTION_PARAMETERS, int do_lchown) /* {{{ */
 	}
 	RETURN_TRUE;
 #endif
+#else
+	RETURN_TRUE;
+#endif // WASM_WASI
 }
 /* }}} */
 
@@ -563,6 +577,7 @@ PHP_FUNCTION(lchown)
 /* {{{ Change file mode */
 PHP_FUNCTION(chmod)
 {
+#ifndef WASM_WASI
 	char *filename;
 	size_t filename_len;
 	zend_long mode;
@@ -601,6 +616,7 @@ PHP_FUNCTION(chmod)
 		php_error_docref(NULL, E_WARNING, "%s", strerror(errno));
 		RETURN_FALSE;
 	}
+#endif // WASM_WASI
 	RETURN_TRUE;
 }
 /* }}} */
@@ -855,6 +871,7 @@ PHPAPI void php_stat(zend_string *filename, int type, zval *return_value)
 
 	stat_sb = &ssb.sb;
 
+#ifndef WASM_WASI
 	if (type >= FS_IS_W && type <= FS_IS_X) {
 		if(ssb.sb.st_uid==getuid()) {
 			rmask=S_IRUSR;
@@ -895,6 +912,7 @@ PHPAPI void php_stat(zend_string *filename, int type, zval *return_value)
 			}
 		}
 	}
+#endif // WASM_WASI
 
 	switch (type) {
 	case FS_PERMS:
@@ -919,7 +937,9 @@ PHPAPI void php_stat(zend_string *filename, int type, zval *return_value)
 			RETURN_STRING("link");
 		}
 		switch(ssb.sb.st_mode & S_IFMT) {
+#ifndef WASM_WASI
 		case S_IFIFO: RETURN_STRING("fifo");
+#endif // WASM_WASI
 		case S_IFCHR: RETURN_STRING("char");
 		case S_IFDIR: RETURN_STRING("dir");
 		case S_IFBLK: RETURN_STRING("block");

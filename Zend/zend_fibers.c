@@ -36,7 +36,7 @@
 # include <ucontext.h>
 #endif
 
-#ifndef ZEND_WIN32
+#if !defined(ZEND_WIN32) && HAVE_MMAP
 # include <unistd.h>
 # include <sys/mman.h>
 # include <limits.h>
@@ -91,7 +91,9 @@ typedef struct _zend_fiber_vm_state {
 	zend_execute_data *current_execute_data;
 	int error_reporting;
 	uint32_t jit_trace_num;
+#ifndef WASM_WASI
 	JMP_BUF *bailout;
+#endif // WASM_WASI
 	zend_fiber *active_fiber;
 } zend_fiber_vm_state;
 
@@ -104,7 +106,9 @@ static zend_always_inline void zend_fiber_capture_vm_state(zend_fiber_vm_state *
 	state->current_execute_data = EG(current_execute_data);
 	state->error_reporting = EG(error_reporting);
 	state->jit_trace_num = EG(jit_trace_num);
+#ifndef WASM_WASI
 	state->bailout = EG(bailout);
+#endif // WASM_WASI
 	state->active_fiber = EG(active_fiber);
 }
 
@@ -117,7 +121,9 @@ static zend_always_inline void zend_fiber_restore_vm_state(zend_fiber_vm_state *
 	EG(current_execute_data) = state->current_execute_data;
 	EG(error_reporting) = state->error_reporting;
 	EG(jit_trace_num) = state->jit_trace_num;
+#ifndef WASM_WASI
 	EG(bailout) = state->bailout;
+#endif // WASM_WASI
 	EG(active_fiber) = state->active_fiber;
 }
 
@@ -203,6 +209,8 @@ static zend_fiber_stack *zend_fiber_stack_allocate(size_t size)
 		return NULL;
 	}
 # endif
+#elif defined(WASM_WASI)
+	pointer = malloc(alloc_size);
 #else
 	pointer = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
 
@@ -250,6 +258,8 @@ static void zend_fiber_stack_free(zend_fiber_stack *stack)
 
 #ifdef ZEND_WIN32
 	VirtualFree(pointer, 0, MEM_RELEASE);
+#elif defined(WASM_WASI)
+	free(pointer);
 #else
 	munmap(pointer, stack->size + ZEND_FIBER_GUARD_PAGES * page_size);
 #endif

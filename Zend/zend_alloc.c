@@ -79,7 +79,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#ifndef _WIN32
+#if !defined(_WIN32) && HAVE_MMAP
 # include <sys/mman.h>
 # ifndef MAP_ANON
 #  ifdef MAP_ANONYMOUS
@@ -421,6 +421,8 @@ static void *zend_mm_mmap_fixed(void *addr, size_t size)
 {
 #ifdef _WIN32
 	return VirtualAlloc(addr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#elif ! HAVE_MMAP
+	return NULL;
 #else
 	int flags = MAP_PRIVATE | MAP_ANON;
 #if defined(MAP_EXCL)
@@ -459,6 +461,10 @@ static void *zend_mm_mmap(size_t size)
 		return NULL;
 	}
 	return ptr;
+#elif ! HAVE_MMAP
+	void* ptr = malloc(size);
+	memset(ptr, 0, size);
+	return ptr;
 #else
 	void *ptr;
 
@@ -491,6 +497,8 @@ static void zend_mm_munmap(void *addr, size_t size)
 		stderr_last_error("VirtualFree() failed");
 #endif
 	}
+#elif ! HAVE_MMAP
+	free(addr);
 #else
 	if (munmap(addr, size) != 0) {
 #if ZEND_MM_ERROR
@@ -664,6 +672,11 @@ static zend_always_inline int zend_mm_bitset_is_free_range(zend_mm_bitset *bitse
 
 static void *zend_mm_chunk_alloc_int(size_t size, size_t alignment)
 {
+#if ! HAVE_MMAP
+	void* ptr = aligned_alloc(alignment, size);
+	memset(ptr, 0, size);
+	return ptr;
+#else
 	void *ptr = zend_mm_mmap(size);
 
 	if (ptr == NULL) {
@@ -710,6 +723,7 @@ static void *zend_mm_chunk_alloc_int(size_t size, size_t alignment)
 #endif
 		return ptr;
 	}
+#endif
 }
 
 static void *zend_mm_chunk_alloc(zend_mm_heap *heap, size_t size, size_t alignment)
@@ -2860,7 +2874,7 @@ ZEND_API void start_memory_manager(void)
 #else
 	alloc_globals_ctor(&alloc_globals);
 #endif
-#ifndef _WIN32
+#if !defined(_WIN32) && HAVE_MMAP
 #  if defined(_SC_PAGESIZE)
 	REAL_PAGE_SIZE = sysconf(_SC_PAGESIZE);
 #  elif defined(_SC_PAGE_SIZE)

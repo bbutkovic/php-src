@@ -192,6 +192,7 @@ static void ps_files_open(ps_files *data, const char *key)
 #endif
 
 		if (data->fd != -1) {
+#ifndef WASM_WASI
 #ifndef PHP_WIN32
 			/* check that this session file was created by us or root – we
 			   don't want to end up accepting the sessions of another webapp
@@ -211,6 +212,7 @@ static void ps_files_open(ps_files *data, const char *key)
 			do {
 				ret = flock(data->fd, LOCK_EX);
 			} while (ret == -1 && errno == EINTR);
+#endif // WASM_WASI
 
 #ifdef F_SETFD
 # ifndef FD_CLOEXEC
